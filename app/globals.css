@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #111827;
+  --foreground: #ffffff;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+}
+
+/* Solana wallet adapter overrides */
+.wallet-adapter-button {
+  background-color: #8b5cf6 !important;
+}
+
+.wallet-adapter-button:hover {
+  background-color: #7c3aed !important;
+}
+
+.wallet-adapter-modal-wrapper {
+  background-color: #1f2937 !important;
+}
+
+.wallet-adapter-modal-title {
+  color: white !important;
+}
+
+/* Wormhole Connect wrapper styling */
+.wormhole-connect-wrapper {
+  min-height: 500px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1f2937;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* Tab styles */
+.tab-button {
+  @apply px-6 py-3 font-medium transition-colors;
+}
+
+.tab-button.active {
+  @apply bg-purple-600 text-white;
+}
+
+.tab-button:not(.active) {
+  @apply bg-gray-700 text-gray-300 hover:bg-gray-600;
+}
