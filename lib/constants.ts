@@ -21,7 +21,8 @@ export const HYPEREVM_CHAIN = {
 };
 
 // Solana RPC endpoints
-export const SOLANA_RPC = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
+// Using a more reliable RPC - the public mainnet-beta is heavily rate-limited
+export const SOLANA_RPC = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://solana-mainnet.g.alchemy.com/v2/demo";
 export const SOLANA_EXPLORER = "https://solscan.io";
 
 // ============ TOKEN ADDRESSES ============

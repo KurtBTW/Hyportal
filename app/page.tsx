@@ -51,6 +51,7 @@ function HyPortalApp() {
   const [solanaUsdcBalance, setSolanaUsdcBalance] = useState<bigint>(BigInt(0));
   const [hyperEvmUsdcBalance, setHyperEvmUsdcBalance] = useState<bigint>(BigInt(0));
   const [hypurrfiBalance, setHypurrfiBalance] = useState<bigint>(BigInt(0));
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
 
   // Transaction state
   const [quote, setQuote] = useState<JupiterQuote | null>(null);
@@ -78,10 +79,31 @@ function HyPortalApp() {
       return;
     }
 
+    setIsLoadingBalance(true);
+    console.log("Fetching balances for:", solanaPublicKey.toBase58());
+    console.log("Using connection endpoint:", connection.rpcEndpoint);
+
     try {
-      // Get SOL balance
-      const solBalanceResult = await connection.getBalance(solanaPublicKey, "confirmed");
-      console.log("SOL balance (lamports):", solBalanceResult);
+      // Get SOL balance with retry logic and multiple RPC fallbacks
+      let solBalanceResult = 0;
+      const rpcEndpoints = [
+        connection.rpcEndpoint,
+        "https://api.mainnet-beta.solana.com",
+        "https://solana-api.projectserum.com",
+      ];
+      
+      for (const endpoint of rpcEndpoints) {
+        try {
+          const { Connection } = await import("@solana/web3.js");
+          const conn = endpoint === connection.rpcEndpoint ? connection : new Connection(endpoint, "confirmed");
+          solBalanceResult = await conn.getBalance(solanaPublicKey, "confirmed");
+          console.log(`SOL balance from ${endpoint}:`, solBalanceResult, "lamports");
+          if (solBalanceResult >= 0) break; // Success
+        } catch (rpcError) {
+          console.warn(`RPC ${endpoint} failed:`, rpcError);
+        }
+      }
+      
       setSolBalance(BigInt(solBalanceResult));
 
       // Get USDC balance
@@ -93,12 +115,14 @@ function HyPortalApp() {
         setSolanaUsdcBalance(account.amount);
       } catch (e) {
         // Token account doesn't exist - that's fine, just means 0 USDC
-        console.log("No USDC token account found");
+        console.log("No USDC token account found or error:", e);
         setSolanaUsdcBalance(BigInt(0));
       }
     } catch (err) {
       console.error("Error fetching Solana balances:", err);
       // Don't reset balances on error - keep showing last known value
+    } finally {
+      setIsLoadingBalance(false);
     }
   }, [solanaPublicKey, connection]);
 
@@ -425,12 +449,15 @@ function HyPortalApp() {
                   </span>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-zinc-500">
-                      {solanaConnected ? `Balance: ${inputMode === "sol" ? formatSol(solBalance) : formatUsdc(solanaUsdcBalance)} ${inputMode === "sol" ? "SOL" : "USDC"}` : "Connect wallet"}
+                      {!solanaConnected ? "Connect wallet" : 
+                       isLoadingBalance ? "Loading..." :
+                       `Balance: ${inputMode === "sol" ? formatSol(solBalance) : formatUsdc(solanaUsdcBalance)} ${inputMode === "sol" ? "SOL" : "USDC"}`}
                     </span>
                     {solanaConnected && (
                       <button 
                         onClick={fetchSolanaBalances}
-                        className="text-xs text-zinc-600 hover:text-[#fbe572] transition-colors"
+                        disabled={isLoadingBalance}
+                        className={`text-xs transition-colors ${isLoadingBalance ? "text-zinc-700 animate-spin" : "text-zinc-600 hover:text-[#fbe572]"}`}
                         title="Refresh balance"
                       >
                         ↻
