@@ -326,77 +326,75 @@ function HyPortalApp() {
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold gradient-text">HyPortal</h1>
-          <p className="text-zinc-500 text-sm mt-1">Solana → HyperEVM → HypurrFi</p>
+          <h1 className="text-2xl font-bold gradient-text">HyPortal</h1>
+          {step !== "landing" && (
+            <p className="text-zinc-500 text-sm mt-1">Solana → HyperEVM → HypurrFi</p>
+          )}
         </div>
 
         {/* Main Card */}
         <div className="card p-6">
-          {/* Landing Step - Savings Account Feel */}
+          {/* Landing Step - Wellspring-inspired Design */}
           {step === "landing" && (
-            <div className="space-y-6">
-              {/* USDC Logo and APY Display */}
-              <div className="text-center py-6">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#2775CA] to-[#1A5BA8] mx-auto flex items-center justify-center mb-4 shadow-lg shadow-[#2775CA]/20">
-                  <svg viewBox="0 0 32 32" className="w-12 h-12" fill="none">
-                    <circle cx="16" cy="16" r="16" fill="#2775CA"/>
-                    <path d="M20.5 18.2c0-1.9-1.2-2.6-3.5-2.9v-3.4c1.1.1 2.2.5 3.1 1.2l.9-1.4c-1.2-.9-2.6-1.3-4-1.4V8.5h-1.5v1.8c-2.4.3-3.9 1.7-3.9 3.7 0 2 1.2 2.8 3.9 3.1v3.5c-1.4-.2-2.7-.7-3.8-1.6l-1 1.4c1.4 1.1 3.1 1.7 4.8 1.9v2h1.5v-2c2.5-.3 4-1.7 4-3.8zm-5-2.4c-1.5-.2-2.1-.6-2.1-1.6s.7-1.5 2.1-1.7v3.3zm1.5 5.4v-3.4c1.5.2 2.2.6 2.2 1.7s-.8 1.5-2.2 1.7z" fill="white"/>
-                  </svg>
-                </div>
-                <p className="text-zinc-400 text-sm mb-2">Deposit to earn</p>
-                <div className="flex items-center justify-center gap-2">
-                  {supplyApy !== null ? (
-                    <span className="text-4xl font-bold gradient-text">{supplyApy.toFixed(2)}%</span>
-                  ) : (
-                    <span className="text-4xl font-bold text-zinc-500">--.--</span>
-                  )}
-                  <span className="text-lg text-zinc-400">APY</span>
-                </div>
-                <p className="text-xs text-zinc-500 mt-2">on USDC via HypurrFi</p>
-              </div>
-
-              {/* Info Box */}
-              <div className="card-inner p-4 space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[#fbe572]/10 flex items-center justify-center flex-shrink-0">
-                    <span className="text-sm">1</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Fund with SOL or USDC</p>
-                    <p className="text-xs text-zinc-500">Swap SOL to USDC or use existing USDC</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[#a1fce7]/10 flex items-center justify-center flex-shrink-0">
-                    <span className="text-sm">2</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Bridge to HyperEVM</p>
-                    <p className="text-xs text-zinc-500">Cross-chain transfer via Portal Bridge</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[#22c55e]/10 flex items-center justify-center flex-shrink-0">
-                    <span className="text-sm">3</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Earn yield automatically</p>
-                    <p className="text-xs text-zinc-500">Deposit to HypurrFi lending pool</p>
-                  </div>
+            <div className="space-y-8">
+              {/* Badge */}
+              <div className="flex justify-center">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#fbe572]/10 border border-[#fbe572]/20">
+                  <div className="w-2 h-2 rounded-full bg-[#fbe572]" />
+                  <span className="text-xs text-[#fbe572] font-medium">Earn yield on your USDC</span>
                 </div>
               </div>
 
-              {/* Deposit Button */}
+              {/* Main Headline */}
+              <div className="text-center space-y-4">
+                <h1 className="text-3xl sm:text-4xl font-bold leading-tight">
+                  High yield. No lockup.{" "}
+                  <span className="gradient-text">
+                    {supplyApy !== null ? `${supplyApy.toFixed(1)}% APY` : "-- APY"}
+                  </span>
+                </h1>
+                <p className="text-zinc-400 text-base max-w-sm mx-auto">
+                  Bridge from Solana and deposit to HypurrFi—earning high yield powered by DeFi lending markets.
+                </p>
+              </div>
+
+              {/* CTA Button */}
               <button
                 onClick={() => setStep("input")}
                 className="w-full btn-primary py-4 text-base font-semibold"
               >
-                Deposit
+                Deposit Now
               </button>
 
-              <p className="text-center text-xs text-zinc-600">
-                Non-custodial. You control your funds.
-              </p>
+              {/* Stats Row */}
+              <div className="grid grid-cols-3 gap-4 pt-4 border-t border-white/5">
+                <div className="text-center">
+                  <p className="text-xl font-bold gradient-text">
+                    {supplyApy !== null ? `${supplyApy.toFixed(1)}%` : "--"}
+                  </p>
+                  <p className="text-xs text-zinc-500">Supply APY</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xl font-bold text-white">USDC</p>
+                  <p className="text-xs text-zinc-500">Stablecoin</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xl font-bold text-white">24/7</p>
+                  <p className="text-xs text-zinc-500">Withdraw</p>
+                </div>
+              </div>
+
+              {/* Trust indicators */}
+              <div className="text-center space-y-2 pt-2">
+                <p className="text-xs text-zinc-600">Powered by</p>
+                <div className="flex items-center justify-center gap-4 text-zinc-500 text-xs">
+                  <span>HypurrFi</span>
+                  <span>•</span>
+                  <span>Portal Bridge</span>
+                  <span>•</span>
+                  <span>Jupiter</span>
+                </div>
+              </div>
             </div>
           )}
 
@@ -793,10 +791,12 @@ function HyPortalApp() {
           )}
         </div>
 
-        {/* Footer */}
-        <p className="text-center text-xs text-zinc-600 mt-4">
-          Powered by Jupiter + Wormhole + HypurrFi
-        </p>
+        {/* Footer - hide on landing */}
+        {step !== "landing" && (
+          <p className="text-center text-xs text-zinc-600 mt-4">
+            Powered by Jupiter + Wormhole + HypurrFi
+          </p>
+        )}
       </div>
     </main>
   );
