@@ -8,7 +8,7 @@ import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { getAssociatedTokenAddress, getAccount, TokenAccountNotFoundError } from "@solana/spl-token";
 import { getSwapQuote, getSwapTransaction, JupiterQuote } from "@/lib/jupiter";
-import { findUsdcReserve, supply, getUserReserveData } from "@/lib/hypurr";
+import { findUsdcReserve, supply, getUserReserveData, getReserveData, rayToApy } from "@/lib/hypurr";
 import { getTokenBalance } from "@/lib/erc20";
 import { 
   SOLANA_USDC_MINT, 
@@ -24,7 +24,7 @@ const SolanaWalletProvider = dynamic(
   { ssr: false }
 );
 
-type FlowStep = "input" | "swap" | "bridge" | "deposit" | "complete";
+type FlowStep = "landing" | "input" | "swap" | "bridge" | "deposit" | "complete";
 type InputMode = "sol" | "usdc";
 
 function HyPortalApp() {
@@ -33,11 +33,14 @@ function HyPortalApp() {
   const { address: evmAddress, isConnected: evmConnected, isHyperEvm, signer, connect: connectEvm, switchToHyperEvm } = useEvmWallet();
 
   // Flow state
-  const [step, setStep] = useState<FlowStep>("input");
+  const [step, setStep] = useState<FlowStep>("landing");
   const [inputMode, setInputMode] = useState<InputMode>("sol");
   const [amount, setAmount] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Supply APY
+  const [supplyApy, setSupplyApy] = useState<number | null>(null);
 
   // Destination address - can be manually entered OR connected wallet
   const [destinationAddress, setDestinationAddress] = useState("");
@@ -143,6 +146,24 @@ function HyPortalApp() {
       return () => clearInterval(interval);
     }
   }, [fetchHyperEvmBalances, step]);
+
+  // Fetch supply APY on mount
+  useEffect(() => {
+    const fetchApy = async () => {
+      try {
+        const usdcAddress = await findUsdcReserve();
+        if (usdcAddress) {
+          setUsdcReserveAddress(usdcAddress);
+          const reserveData = await getReserveData(usdcAddress);
+          const apy = rayToApy(reserveData.liquidityRate);
+          setSupplyApy(apy);
+        }
+      } catch (err) {
+        console.error("Error fetching APY:", err);
+      }
+    };
+    fetchApy();
+  }, []);
 
   // Fetch quote when amount changes (for SOL input)
   useEffect(() => {
@@ -252,7 +273,7 @@ function HyPortalApp() {
 
   // Reset flow
   const resetFlow = () => {
-    setStep("input");
+    setStep("landing");
     setAmount("");
     setQuote(null);
     setUsdcToDeposit("0");
@@ -262,13 +283,13 @@ function HyPortalApp() {
 
   // Determine which steps are complete
   const getStepStatus = (s: FlowStep): "complete" | "current" | "pending" => {
-    const order: FlowStep[] = ["input", "swap", "bridge", "deposit", "complete"];
+    const order: FlowStep[] = ["landing", "input", "swap", "bridge", "deposit", "complete"];
     const currentIndex = order.indexOf(step);
     const stepIndex = order.indexOf(s);
     
     // Skip swap step if using USDC
     if (s === "swap" && inputMode === "usdc") {
-      return step === "input" ? "pending" : "complete";
+      return step === "input" || step === "landing" ? "pending" : "complete";
     }
     
     if (stepIndex < currentIndex) return "complete";
@@ -287,14 +308,84 @@ function HyPortalApp() {
 
         {/* Main Card */}
         <div className="card p-6">
-          {/* Progress Steps */}
-          <div className="flex items-center justify-between mb-6">
-            <StepIndicator label="Fund" status={getStepStatus("swap")} number={1} />
-            <StepConnector active={getStepStatus("bridge") !== "pending"} />
-            <StepIndicator label="Bridge" status={getStepStatus("bridge")} number={2} />
-            <StepConnector active={getStepStatus("deposit") !== "pending"} />
-            <StepIndicator label="Deposit" status={getStepStatus("deposit")} number={3} />
-          </div>
+          {/* Landing Step - Savings Account Feel */}
+          {step === "landing" && (
+            <div className="space-y-6">
+              {/* USDC Logo and APY Display */}
+              <div className="text-center py-6">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#2775CA] to-[#1A5BA8] mx-auto flex items-center justify-center mb-4 shadow-lg shadow-[#2775CA]/20">
+                  <svg viewBox="0 0 32 32" className="w-12 h-12" fill="none">
+                    <circle cx="16" cy="16" r="16" fill="#2775CA"/>
+                    <path d="M20.5 18.2c0-1.9-1.2-2.6-3.5-2.9v-3.4c1.1.1 2.2.5 3.1 1.2l.9-1.4c-1.2-.9-2.6-1.3-4-1.4V8.5h-1.5v1.8c-2.4.3-3.9 1.7-3.9 3.7 0 2 1.2 2.8 3.9 3.1v3.5c-1.4-.2-2.7-.7-3.8-1.6l-1 1.4c1.4 1.1 3.1 1.7 4.8 1.9v2h1.5v-2c2.5-.3 4-1.7 4-3.8zm-5-2.4c-1.5-.2-2.1-.6-2.1-1.6s.7-1.5 2.1-1.7v3.3zm1.5 5.4v-3.4c1.5.2 2.2.6 2.2 1.7s-.8 1.5-2.2 1.7z" fill="white"/>
+                  </svg>
+                </div>
+                <p className="text-zinc-400 text-sm mb-2">Deposit to earn</p>
+                <div className="flex items-center justify-center gap-2">
+                  {supplyApy !== null ? (
+                    <span className="text-4xl font-bold gradient-text">{supplyApy.toFixed(2)}%</span>
+                  ) : (
+                    <span className="text-4xl font-bold text-zinc-500">--.--</span>
+                  )}
+                  <span className="text-lg text-zinc-400">APY</span>
+                </div>
+                <p className="text-xs text-zinc-500 mt-2">on USDC via HypurrFi</p>
+              </div>
+
+              {/* Info Box */}
+              <div className="card-inner p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-[#fbe572]/10 flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm">1</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Fund with SOL or USDC</p>
+                    <p className="text-xs text-zinc-500">Swap SOL to USDC or use existing USDC</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-[#a1fce7]/10 flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm">2</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Bridge to HyperEVM</p>
+                    <p className="text-xs text-zinc-500">Cross-chain transfer via Portal Bridge</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-[#22c55e]/10 flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm">3</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Earn yield automatically</p>
+                    <p className="text-xs text-zinc-500">Deposit to HypurrFi lending pool</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Deposit Button */}
+              <button
+                onClick={() => setStep("input")}
+                className="w-full btn-primary py-4 text-base font-semibold"
+              >
+                Deposit
+              </button>
+
+              <p className="text-center text-xs text-zinc-600">
+                Non-custodial. You control your funds.
+              </p>
+            </div>
+          )}
+
+          {/* Progress Steps - Only show after landing */}
+          {step !== "landing" && (
+            <div className="flex items-center justify-between mb-6">
+              <StepIndicator label="Fund" status={getStepStatus("swap")} number={1} />
+              <StepConnector active={getStepStatus("bridge") !== "pending"} />
+              <StepIndicator label="Bridge" status={getStepStatus("bridge")} number={2} />
+              <StepConnector active={getStepStatus("deposit") !== "pending"} />
+              <StepIndicator label="Deposit" status={getStepStatus("deposit")} number={3} />
+            </div>
+          )}
 
           {/* Input Step */}
           {step === "input" && (

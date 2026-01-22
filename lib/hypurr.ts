@@ -26,6 +26,12 @@ export interface UserReserveData {
   usageAsCollateralEnabled: boolean;
 }
 
+export interface ReserveData {
+  liquidityRate: bigint; // Supply APY in RAY (1e27)
+  variableBorrowRate: bigint;
+  stableBorrowRate: bigint;
+}
+
 /**
  * Get HypurrFi Pool contract instance
  */
@@ -166,6 +172,41 @@ export async function withdraw(
 ): Promise<ethers.TransactionResponse> {
   const pool = getPoolContract(signer);
   return await pool.withdraw(assetAddress, amount, to);
+}
+
+/**
+ * Get reserve data including supply APY (liquidity rate)
+ */
+export async function getReserveData(
+  assetAddress: string,
+  provider?: ethers.Provider
+): Promise<ReserveData> {
+  const _provider = provider || getHyperEvmProvider();
+  const dataProvider = getProtocolDataProvider(_provider);
+  
+  const data = await dataProvider.getReserveData(assetAddress);
+  
+  return {
+    liquidityRate: data[5], // Index 5 is liquidityRate
+    variableBorrowRate: data[6],
+    stableBorrowRate: data[7],
+  };
+}
+
+/**
+ * Convert RAY (1e27) rate to APY percentage
+ * Aave stores rates in RAY format
+ */
+export function rayToApy(rayRate: bigint): number {
+  const RAY = BigInt(10 ** 27);
+  const SECONDS_PER_YEAR = 31536000;
+  
+  // Convert to rate per second
+  const ratePerSecond = Number(rayRate) / Number(RAY);
+  
+  // Compound to get APY: (1 + rate/secondsPerYear)^secondsPerYear - 1
+  // Simplified: rate is already annualized in Aave, just convert to percentage
+  return (Number(rayRate) / Number(RAY)) * 100;
 }
 
 /**
