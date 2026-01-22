@@ -53,14 +53,16 @@ body {
   background: linear-gradient(135deg, #fbe572 0%, #c2f4bc 100%);
   color: #0a0a0c;
   font-weight: 600;
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
   padding: 0.75rem 1.5rem;
   transition: all 0.2s;
+  border: none;
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   opacity: 0.9;
   transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(251, 229, 114, 0.3);
 }
 
 .btn-primary:disabled {
@@ -74,13 +76,19 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: white;
   font-weight: 500;
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
   padding: 0.75rem 1.5rem;
   transition: all 0.2s;
 }
 
-.btn-secondary:hover {
+.btn-secondary:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Input styles */
