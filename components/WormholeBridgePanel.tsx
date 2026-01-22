@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { PublicKey } from "@solana/web3.js";
@@ -8,6 +8,23 @@ import { getAssociatedTokenAddress, getAccount, TokenAccountNotFoundError } from
 import { useConnection } from "@solana/wallet-adapter-react";
 import { useEvmWallet, EvmConnectButton } from "./EvmWallet";
 import { SOLANA_USDC_MINT, USDC_DECIMALS } from "@/lib/constants";
+import dynamic from "next/dynamic";
+
+// Dynamically import Wormhole Connect to avoid SSR issues
+const WormholeConnect = dynamic(
+  () => import("@wormhole-foundation/wormhole-connect"),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-[500px]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-[#fbe572] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-zinc-400 text-sm">Loading Bridge Widget...</p>
+        </div>
+      </div>
+    )
+  }
+);
 
 interface WormholeBridgePanelProps {
   direction: "deposit" | "withdraw";
@@ -22,8 +39,11 @@ export default function WormholeBridgePanel({ direction }: WormholeBridgePanelPr
   
   const [viewMode, setViewMode] = useState<ViewMode>("setup");
   const [solanaUsdcBalance, setSolanaUsdcBalance] = useState<bigint>(BigInt(0));
-  const [bridgeUrl, setBridgeUrl] = useState<string>("");
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Fetch Solana USDC balance
   useEffect(() => {
@@ -54,32 +74,6 @@ export default function WormholeBridgePanel({ direction }: WormholeBridgePanelPr
     return () => clearInterval(interval);
   }, [solanaPublicKey, connection]);
 
-  // Build bridge URL based on direction and connected wallets
-  useEffect(() => {
-    let url = "https://portalbridge.com/";
-    const params = new URLSearchParams();
-    
-    if (direction === "deposit") {
-      params.set("sourceChain", "solana");
-      // Default to a popular chain, user can change in Portal
-      params.set("targetChain", "arbitrum");
-    } else {
-      params.set("sourceChain", "arbitrum");
-      params.set("targetChain", "solana");
-    }
-    
-    params.set("asset", "USDCso"); // Solana USDC
-    
-    // Pre-fill addresses if available
-    if (direction === "deposit" && evmAddress) {
-      params.set("targetAddress", evmAddress);
-    } else if (direction === "withdraw" && solanaPublicKey) {
-      params.set("targetAddress", solanaPublicKey.toBase58());
-    }
-    
-    setBridgeUrl(`${url}?${params.toString()}`);
-  }, [direction, evmAddress, solanaPublicKey]);
-
   const formatBalance = (bal: bigint) => {
     const num = Number(bal) / 10 ** USDC_DECIMALS;
     return num.toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -88,6 +82,54 @@ export default function WormholeBridgePanel({ direction }: WormholeBridgePanelPr
   const canProceed = direction === "deposit" 
     ? (solanaConnected && evmConnected)
     : (evmConnected && isHyperEvm && solanaConnected);
+
+  // Wormhole Connect configuration
+  const wormholeConfig = {
+    network: "Mainnet",
+    chains: ["Solana", "Arbitrum", "Optimism", "Base", "Polygon", "Ethereum"],
+    tokens: ["USDC"],
+    rpcs: {
+      Solana: "https://api.mainnet-beta.solana.com",
+    },
+  } as any; // Use any to avoid complex Wormhole types
+
+  // Custom theme for Wormhole Connect
+  const wormholeTheme = {
+    mode: "dark",
+    primary: "#fbe572",
+    secondary: "#0f0f12",
+    text: "#ffffff",
+    textSecondary: "#a1a1aa",
+    error: "#ef4444",
+    success: "#22c55e",
+    badge: {
+      background: "rgba(255, 255, 255, 0.1)",
+      text: "#ffffff",
+    },
+    button: {
+      primary: "#fbe572",
+      primaryText: "#0a0a0c",
+      disabled: "rgba(255, 255, 255, 0.1)",
+      disabledText: "#71717a",
+    },
+    card: {
+      background: "#0f0f12",
+      secondary: "rgba(255, 255, 255, 0.02)",
+    },
+    font: {
+      primary: "Inter, system-ui, sans-serif",
+    },
+  } as any;
+
+  if (!mounted) {
+    return (
+      <div className="card p-6">
+        <div className="h-[400px] flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-[#fbe572] border-t-transparent rounded-full animate-spin" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="card p-6">
@@ -104,9 +146,12 @@ export default function WormholeBridgePanel({ direction }: WormholeBridgePanelPr
         {viewMode === "bridge" && (
           <button
             onClick={() => setViewMode("setup")}
-            className="text-sm text-zinc-400 hover:text-white transition-colors"
+            className="text-sm text-zinc-400 hover:text-white transition-colors flex items-center gap-1"
           >
-            ← Back
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back
           </button>
         )}
       </div>
@@ -116,7 +161,7 @@ export default function WormholeBridgePanel({ direction }: WormholeBridgePanelPr
           {/* Wallet Status Cards */}
           <div className="grid grid-cols-2 gap-4 mb-6">
             {/* Solana Wallet */}
-            <div className={`p-4 rounded-xl border transition-colors ${
+            <div className={`p-4 rounded-xl border transition-all ${
               solanaConnected 
                 ? "bg-green-500/5 border-green-500/30" 
                 : "bg-white/5 border-white/10"
@@ -128,13 +173,13 @@ export default function WormholeBridgePanel({ direction }: WormholeBridgePanelPr
               <WalletMultiButton className="!w-full !justify-center !h-9 !text-sm" />
               {solanaConnected && (
                 <p className="text-xs text-zinc-400 mt-2 text-center">
-                  {formatBalance(solanaUsdcBalance)} USDC available
+                  {formatBalance(solanaUsdcBalance)} USDC
                 </p>
               )}
             </div>
 
             {/* EVM Wallet */}
-            <div className={`p-4 rounded-xl border transition-colors ${
+            <div className={`p-4 rounded-xl border transition-all ${
               evmConnected && isHyperEvm
                 ? "bg-green-500/5 border-green-500/30"
                 : evmConnected
@@ -169,29 +214,30 @@ export default function WormholeBridgePanel({ direction }: WormholeBridgePanelPr
                 </h4>
                 <p className="text-sm text-zinc-400">
                   {direction === "deposit"
-                    ? "Bridge your USDC from Solana to HyperEVM using Wormhole Portal Bridge."
-                    : "Bridge your USDC from HyperEVM back to Solana."}
+                    ? "Bridge USDC using Wormhole. Select destination chain and complete the bridge."
+                    : "Bridge your USDC back to Solana using Wormhole."}
                 </p>
               </div>
             </div>
           </div>
 
-          {/* What to expect */}
+          {/* Steps */}
           <div className="mb-6 space-y-3">
-            <h4 className="text-sm font-medium text-zinc-400">What to expect:</h4>
+            <h4 className="text-sm font-medium text-zinc-400">Bridge Steps:</h4>
             <div className="space-y-2">
               <div className="flex items-center gap-3 text-sm">
-                <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-xs">1</div>
-                <span className="text-zinc-300">Connect both wallets above</span>
-                {canProceed && <span className="text-green-400">✓</span>}
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${canProceed ? "bg-green-500/20 text-green-400" : "bg-white/10 text-zinc-400"}`}>
+                  {canProceed ? "✓" : "1"}
+                </div>
+                <span className={canProceed ? "text-green-400" : "text-zinc-300"}>Connect both wallets</span>
               </div>
               <div className="flex items-center gap-3 text-sm">
-                <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-xs">2</div>
-                <span className="text-zinc-300">Enter amount and confirm bridge</span>
+                <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-xs text-zinc-400">2</div>
+                <span className="text-zinc-300">Select amount and destination</span>
               </div>
               <div className="flex items-center gap-3 text-sm">
-                <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-xs">3</div>
-                <span className="text-zinc-300">Wait 2-5 minutes for confirmation</span>
+                <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-xs text-zinc-400">3</div>
+                <span className="text-zinc-300">Approve and confirm transaction</span>
               </div>
             </div>
           </div>
@@ -202,80 +248,77 @@ export default function WormholeBridgePanel({ direction }: WormholeBridgePanelPr
             disabled={!canProceed}
             className="w-full btn-primary py-4 text-base disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {!canProceed ? "Connect Both Wallets" : "Continue to Bridge"}
+            {!canProceed ? "Connect Both Wallets to Continue" : "Open Bridge Widget"}
           </button>
 
-          {/* Chain Info */}
-          <div className="mt-6 pt-4 border-t border-white/10 grid grid-cols-2 gap-3 text-xs">
-            <div className="p-2 rounded bg-white/5">
-              <span className="text-zinc-500 block">HyperEVM Chain ID</span>
+          {/* Quick Reference */}
+          <div className="mt-6 pt-4 border-t border-white/10 grid grid-cols-3 gap-3 text-xs">
+            <div className="p-2 rounded bg-white/5 text-center">
+              <span className="text-zinc-500 block">Chain ID</span>
               <span className="text-white font-mono">999</span>
             </div>
-            <div className="p-2 rounded bg-white/5">
-              <span className="text-zinc-500 block">Est. Time</span>
-              <span className="text-white">2-5 minutes</span>
+            <div className="p-2 rounded bg-white/5 text-center">
+              <span className="text-zinc-500 block">Bridge</span>
+              <span className="text-white">Wormhole</span>
+            </div>
+            <div className="p-2 rounded bg-white/5 text-center">
+              <span className="text-zinc-500 block">Time</span>
+              <span className="text-white">~5 min</span>
             </div>
           </div>
         </>
       ) : (
         <>
-          {/* Embedded Portal Bridge */}
+          {/* Bridge Widget View */}
           <div className="mb-4 p-3 rounded-lg bg-[#fbe572]/10 border border-[#fbe572]/30">
             <p className="text-sm text-[#fbe572]">
-              <strong>Tip:</strong> Select your destination chain and enter the amount below. 
-              Your recipient address has been pre-filled.
+              <strong>Note:</strong> Select your source and destination chains below. For HyperEVM, 
+              you may need to bridge to an intermediate chain first (like Arbitrum), then transfer.
             </p>
           </div>
 
-          {/* Pre-filled addresses display */}
+          {/* Connected Addresses */}
           <div className="mb-4 grid grid-cols-2 gap-3 text-xs">
-            {direction === "deposit" && evmAddress && (
+            {solanaPublicKey && (
               <div className="p-2 rounded bg-white/5">
-                <span className="text-zinc-500 block mb-1">Recipient (EVM)</span>
-                <span className="text-white font-mono break-all">{evmAddress.slice(0, 10)}...{evmAddress.slice(-8)}</span>
+                <span className="text-zinc-500 block mb-1">Solana</span>
+                <span className="text-white font-mono">{solanaPublicKey.toBase58().slice(0, 6)}...{solanaPublicKey.toBase58().slice(-4)}</span>
               </div>
             )}
-            {direction === "withdraw" && solanaPublicKey && (
+            {evmAddress && (
               <div className="p-2 rounded bg-white/5">
-                <span className="text-zinc-500 block mb-1">Recipient (Solana)</span>
-                <span className="text-white font-mono break-all">{solanaPublicKey.toBase58().slice(0, 8)}...{solanaPublicKey.toBase58().slice(-8)}</span>
+                <span className="text-zinc-500 block mb-1">EVM</span>
+                <span className="text-white font-mono">{evmAddress.slice(0, 6)}...{evmAddress.slice(-4)}</span>
               </div>
             )}
-            <div className="p-2 rounded bg-white/5">
-              <span className="text-zinc-500 block mb-1">Available USDC</span>
-              <span className="text-white">{formatBalance(solanaUsdcBalance)} USDC</span>
-            </div>
           </div>
 
-          {/* Portal Bridge iframe */}
-          <div className="relative rounded-xl overflow-hidden bg-[#0a0a0c] border border-white/10" style={{ height: "600px" }}>
-            <iframe
-              ref={iframeRef}
-              src={bridgeUrl}
-              className="w-full h-full"
-              title="Portal Bridge"
-              allow="clipboard-write"
-              sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-top-navigation"
-            />
-            
-            {/* Loading overlay */}
-            <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0c] pointer-events-none opacity-0 transition-opacity" id="bridge-loading">
-              <div className="text-center">
-                <div className="w-8 h-8 border-2 border-[#fbe572] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                <p className="text-zinc-400">Loading Portal Bridge...</p>
+          {/* Wormhole Connect Widget */}
+          <div className="wormhole-connect-container rounded-xl overflow-hidden border border-white/10 min-h-[500px]" style={{ background: '#0f0f12' }}>
+            <Suspense fallback={
+              <div className="flex items-center justify-center h-[500px]">
+                <div className="w-8 h-8 border-2 border-[#fbe572] border-t-transparent rounded-full animate-spin" />
               </div>
-            </div>
+            }>
+              <WormholeConnect 
+                config={wormholeConfig} 
+                theme={wormholeTheme}
+              />
+            </Suspense>
           </div>
 
-          {/* Alternative link */}
+          {/* Fallback */}
           <div className="mt-4 text-center">
             <a
-              href={bridgeUrl}
+              href="https://portalbridge.com/"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-zinc-500 hover:text-[#a1fce7] transition-colors"
+              className="text-sm text-zinc-500 hover:text-[#a1fce7] transition-colors inline-flex items-center gap-1"
             >
-              Open in new tab if bridge does not load →
+              Open Portal Bridge in new tab
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
             </a>
           </div>
         </>
