@@ -3,66 +3,216 @@
 @tailwind utilities;
 
 :root {
-  --background: #111827;
+  --background: #0a0a0c;
   --foreground: #ffffff;
+  --card: #0f0f12;
+  --card-border: rgba(255, 255, 255, 0.1);
+  --muted: #1a1a1d;
+  --muted-foreground: #71717a;
+  --accent-yellow: #fbe572;
+  --accent-green: #c2f4bc;
+  --accent-teal: #a1fce7;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Gradient text utility */
+.gradient-text {
+  background: linear-gradient(to right, #fbe572, #c2f4bc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-alt {
+  background: linear-gradient(90deg, #fbe572 0%, #a1fce7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Card styles */
+.card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1.5rem;
+}
+
+.card-inner {
+  background: #0f0f12;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 0.75rem;
+}
+
+/* Button styles */
+.btn-primary {
+  background: linear-gradient(135deg, #fbe572 0%, #c2f4bc 100%);
+  color: #0a0a0c;
+  font-weight: 600;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  transition: all 0.2s;
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+  font-weight: 500;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Input styles */
+.input-field {
+  background: #0f0f12;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  color: white;
+  font-size: 1.25rem;
+  transition: border-color 0.2s;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: #fbe572;
+}
+
+.input-field::placeholder {
+  color: #52525b;
 }
 
 /* Solana wallet adapter overrides */
 .wallet-adapter-button {
-  background-color: #8b5cf6 !important;
+  background: linear-gradient(135deg, #fbe572 0%, #c2f4bc 100%) !important;
+  color: #0a0a0c !important;
+  font-weight: 600 !important;
+  border-radius: 0.5rem !important;
 }
 
 .wallet-adapter-button:hover {
-  background-color: #7c3aed !important;
+  opacity: 0.9 !important;
 }
 
 .wallet-adapter-modal-wrapper {
-  background-color: #1f2937 !important;
+  background-color: #0f0f12 !important;
 }
 
 .wallet-adapter-modal-title {
   color: white !important;
 }
 
-/* Wormhole Connect wrapper styling */
+.wallet-adapter-modal-list li {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Tab styles */
+.tab-button {
+  padding: 0.75rem 1.5rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  border-radius: 0.5rem;
+}
+
+.tab-button.active {
+  background: linear-gradient(135deg, #fbe572 0%, #c2f4bc 100%);
+  color: #0a0a0c;
+}
+
+.tab-button:not(.active) {
+  background: rgba(255, 255, 255, 0.05);
+  color: #a1a1aa;
+}
+
+.tab-button:not(.active):hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+/* Status badge */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.badge-success {
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.badge-warning {
+  background: rgba(251, 229, 114, 0.2);
+  color: #fbe572;
+  border: 1px solid rgba(251, 229, 114, 0.3);
+}
+
+.badge-error {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Wormhole Connect wrapper */
 .wormhole-connect-wrapper {
-  min-height: 500px;
-  border-radius: 12px;
+  min-height: 400px;
+  border-radius: 1rem;
   overflow: hidden;
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #1f2937;
+  background: #0f0f12;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #4b5563;
-  border-radius: 4px;
+  background: #27272a;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #6b7280;
+  background: #3f3f46;
 }
 
-/* Tab styles */
-.tab-button {
-  @apply px-6 py-3 font-medium transition-colors;
+/* Animations */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(251, 229, 114, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(251, 229, 114, 0.5);
+  }
 }
 
-.tab-button.active {
-  @apply bg-purple-600 text-white;
-}
-
-.tab-button:not(.active) {
-  @apply bg-gray-700 text-gray-300 hover:bg-gray-600;
+.glow {
+  animation: pulse-glow 2s ease-in-out infinite;
 }

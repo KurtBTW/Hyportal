@@ -7,6 +7,9 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "HyPortal - Solana to HyperEVM Bridge",
   description: "Non-custodial bridge from Solana to HyperEVM with HypurrFi deposits",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({
@@ -16,7 +19,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-gray-900 text-white min-h-screen`}>
+      <body className={`${inter.className} bg-[#0a0a0c] text-white min-h-screen antialiased`}>
         {children}
       </body>
     </html>

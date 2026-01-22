@@ -23,7 +23,6 @@ export default function SolanaWalletProvider({
   children,
 }: SolanaWalletProviderProps) {
   // Configure supported wallets
-  // Note: Backpack wallet is auto-detected via wallet standard
   const wallets = useMemo(
     () => [
       new PhantomWalletAdapter(),
@@ -32,9 +31,14 @@ export default function SolanaWalletProvider({
     []
   );
 
+  // Handle wallet errors
+  const onError = (error: Error) => {
+    console.error("Wallet error:", error);
+  };
+
   return (
     <ConnectionProvider endpoint={SOLANA_RPC}>
-      <WalletProvider wallets={wallets} autoConnect>
+      <WalletProvider wallets={wallets} autoConnect onError={onError}>
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>

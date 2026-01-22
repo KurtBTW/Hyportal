@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { EvmWalletProvider } from "@/components/EvmWallet";
 
-// Dynamically import components that use wallet adapters (SSR issues)
+// Dynamically import components to avoid SSR issues
 const SolanaWalletProvider = dynamic(
   () => import("@/components/SolanaWalletProvider"),
   { ssr: false }
@@ -12,32 +12,32 @@ const SolanaWalletProvider = dynamic(
 
 const JupiterSwapPanel = dynamic(
   () => import("@/components/JupiterSwapPanel"),
-  { ssr: false, loading: () => <PanelSkeleton title="1. Swap SOL to USDC" /> }
+  { ssr: false, loading: () => <PanelSkeleton /> }
 );
 
 const WormholeBridgePanel = dynamic(
   () => import("@/components/WormholeBridgePanel"),
-  { ssr: false, loading: () => <PanelSkeleton title="2. Bridge USDC" /> }
+  { ssr: false, loading: () => <PanelSkeleton /> }
 );
 
 const HypurrDepositPanel = dynamic(
   () => import("@/components/HypurrDepositPanel"),
-  { ssr: false, loading: () => <PanelSkeleton title="3. Deposit to HypurrFi" /> }
+  { ssr: false, loading: () => <PanelSkeleton /> }
 );
 
 const HypurrWithdrawPanel = dynamic(
   () => import("@/components/HypurrWithdrawPanel"),
-  { ssr: false, loading: () => <PanelSkeleton title="1. Withdraw from HypurrFi" /> }
+  { ssr: false, loading: () => <PanelSkeleton /> }
 );
 
-function PanelSkeleton({ title }: { title: string }) {
+function PanelSkeleton() {
   return (
-    <div className="bg-gray-800 rounded-xl p-6 animate-pulse">
-      <h3 className="text-lg font-semibold text-white mb-4">{title}</h3>
-      <div className="space-y-3">
-        <div className="h-10 bg-gray-700 rounded" />
-        <div className="h-10 bg-gray-700 rounded" />
-        <div className="h-12 bg-gray-700 rounded" />
+    <div className="card p-6">
+      <div className="animate-pulse space-y-4">
+        <div className="h-6 bg-white/10 rounded w-1/3" />
+        <div className="h-12 bg-white/5 rounded" />
+        <div className="h-12 bg-white/5 rounded" />
+        <div className="h-12 bg-white/10 rounded" />
       </div>
     </div>
   );
@@ -47,85 +47,106 @@ type Tab = "deposit" | "withdraw";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("deposit");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <main className="min-h-screen py-8 px-4">
+        <div className="max-w-2xl mx-auto">
+          <Header />
+          <div className="mt-8 space-y-6">
+            <PanelSkeleton />
+            <PanelSkeleton />
+            <PanelSkeleton />
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <SolanaWalletProvider>
       <EvmWalletProvider>
         <main className="min-h-screen py-8 px-4">
           <div className="max-w-2xl mx-auto">
-            {/* Header */}
-            <div className="text-center mb-8">
-              <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-purple-400 to-green-400 bg-clip-text text-transparent">
-                HyPortal
-              </h1>
-              <p className="text-gray-400">
-                Solana &rarr; HyperEVM &rarr; HypurrFi
-              </p>
-              <p className="text-sm text-gray-500 mt-1">
-                Non-custodial bridge and deposit in one flow
-              </p>
-            </div>
+            <Header />
 
             {/* Tab Selector */}
-            <div className="flex mb-6 rounded-lg overflow-hidden">
+            <div className="flex gap-2 mt-8 p-1 bg-white/5 rounded-lg w-fit">
               <button
                 onClick={() => setActiveTab("deposit")}
-                className={`flex-1 tab-button ${
-                  activeTab === "deposit" ? "active" : ""
-                }`}
+                className={`tab-button ${activeTab === "deposit" ? "active" : ""}`}
               >
                 Deposit
               </button>
               <button
                 onClick={() => setActiveTab("withdraw")}
-                className={`flex-1 tab-button ${
-                  activeTab === "withdraw" ? "active" : ""
-                }`}
+                className={`tab-button ${activeTab === "withdraw" ? "active" : ""}`}
               >
                 Withdraw
               </button>
             </div>
 
+            {/* Flow indicator */}
+            <div className="flex items-center gap-2 mt-6 text-sm">
+              {activeTab === "deposit" ? (
+                <>
+                  <span className="text-[#fbe572] font-medium">Swap SOL</span>
+                  <ChevronRight />
+                  <span className="text-[#a1fce7] font-medium">Bridge USDC</span>
+                  <ChevronRight />
+                  <span className="gradient-text-alt font-semibold">Deposit to HypurrFi</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-[#fbe572] font-medium">Withdraw</span>
+                  <ChevronRight />
+                  <span className="text-[#a1fce7] font-medium">Bridge to Solana</span>
+                </>
+              )}
+            </div>
+
             {/* Content */}
-            {activeTab === "deposit" ? (
-              <DepositFlow />
-            ) : (
-              <WithdrawFlow />
-            )}
+            <div className="mt-6 space-y-6">
+              {activeTab === "deposit" ? <DepositFlow /> : <WithdrawFlow />}
+            </div>
 
             {/* Footer */}
-            <footer className="mt-8 text-center text-sm text-gray-500">
-              <p>
-                Powered by{" "}
+            <footer className="mt-12 pt-6 border-t border-white/10">
+              <div className="flex items-center justify-center gap-6 text-sm text-zinc-500">
                 <a
                   href="https://jup.ag"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-purple-400 hover:underline"
+                  className="hover:text-white transition-colors"
                 >
                   Jupiter
                 </a>
-                {" + "}
+                <span className="text-zinc-700">|</span>
                 <a
                   href="https://wormhole.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-purple-400 hover:underline"
+                  className="hover:text-white transition-colors"
                 >
                   Wormhole
                 </a>
-                {" + "}
+                <span className="text-zinc-700">|</span>
                 <a
-                  href="https://hypurr.fi"
+                  href="https://app.hypurr.fi"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-purple-400 hover:underline"
+                  className="hover:text-white transition-colors"
                 >
                   HypurrFi
                 </a>
-              </p>
-              <p className="mt-2 text-xs text-gray-600">
-                v0 - SOL only, mainnet-ready
+              </div>
+              <p className="text-center text-xs text-zinc-600 mt-4">
+                v0.1 - Non-custodial bridge
               </p>
             </footer>
           </div>
@@ -135,120 +156,58 @@ export default function Home() {
   );
 }
 
-function DepositFlow() {
-  const [swapComplete, setSwapComplete] = useState(false);
-
+function Header() {
   return (
-    <div className="space-y-6">
-      {/* Step 1: Swap SOL to USDC on Solana */}
-      <JupiterSwapPanel
-        onSwapComplete={() => setSwapComplete(true)}
-      />
-
-      {/* Step 2: Bridge Solana USDC to HyperEVM */}
-      <WormholeBridgePanel direction="deposit" />
-
-      {/* Step 3: Deposit to HypurrFi */}
-      <HypurrDepositPanel />
-
-      {/* Flow indicator */}
-      <div className="bg-gray-800/50 rounded-xl p-4">
-        <h4 className="text-sm font-medium text-gray-400 mb-3">Flow Status</h4>
-        <div className="flex items-center justify-between text-sm">
-          <FlowStep
-            number={1}
-            label="Swap"
-            status={swapComplete ? "complete" : "pending"}
-          />
-          <FlowArrow />
-          <FlowStep
-            number={2}
-            label="Bridge"
-            status="pending"
-          />
-          <FlowArrow />
-          <FlowStep
-            number={3}
-            label="Deposit"
-            status="pending"
-          />
-        </div>
+    <div className="flex items-start justify-between">
+      <div>
+        <h1 className="text-4xl md:text-5xl font-bold gradient-text">
+          HyPortal
+        </h1>
+        <p className="mt-2 text-zinc-400 max-w-md">
+          Bridge your assets from Solana to HyperEVM and deposit into HypurrFi in one seamless flow.
+        </p>
+      </div>
+      <div className="hidden md:block">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#fbe572] to-[#c2f4bc] opacity-80 blur-sm" />
       </div>
     </div>
+  );
+}
+
+function ChevronRight() {
+  return (
+    <svg
+      className="w-4 h-4 text-zinc-600"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+    </svg>
+  );
+}
+
+function DepositFlow() {
+  return (
+    <>
+      <JupiterSwapPanel />
+      <WormholeBridgePanel direction="deposit" />
+      <HypurrDepositPanel />
+    </>
   );
 }
 
 function WithdrawFlow() {
   return (
-    <div className="space-y-6">
-      {/* Step 1: Withdraw from HypurrFi */}
+    <>
       <HypurrWithdrawPanel />
-
-      {/* Step 2: Bridge HyperEVM USDC to Solana */}
       <WormholeBridgePanel direction="withdraw" />
-
-      {/* Note about v0 */}
-      <div className="bg-gray-800/50 rounded-xl p-4 text-sm text-gray-400">
-        <p>
-          <strong>Note (v0):</strong> Withdrawn USDC arrives on Solana as USDC.
-          A future version will support automatic USDC &rarr; SOL swap.
+      <div className="card p-4">
+        <p className="text-sm text-zinc-400">
+          <span className="text-[#fbe572]">Note:</span> Withdrawn USDC arrives on Solana as USDC.
+          Future versions will support automatic USDC to SOL swap.
         </p>
       </div>
-    </div>
-  );
-}
-
-function FlowStep({
-  number,
-  label,
-  status,
-}: {
-  number: number;
-  label: string;
-  status: "pending" | "active" | "complete";
-}) {
-  const bgColor =
-    status === "complete"
-      ? "bg-green-600"
-      : status === "active"
-      ? "bg-purple-600"
-      : "bg-gray-600";
-
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <div
-        className={`w-8 h-8 rounded-full ${bgColor} flex items-center justify-center text-white font-medium`}
-      >
-        {status === "complete" ? (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-        ) : (
-          number
-        )}
-      </div>
-      <span className="text-gray-400 text-xs">{label}</span>
-    </div>
-  );
-}
-
-function FlowArrow() {
-  return (
-    <div className="flex-1 flex items-center justify-center px-2">
-      <div className="h-0.5 w-full bg-gray-600" />
-      <svg
-        className="w-4 h-4 text-gray-600 -ml-1"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d="M9 5l7 7-7 7"
-        />
-      </svg>
-    </div>
+    </>
   );
 }

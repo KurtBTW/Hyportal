@@ -2,9 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
-import { HYPEREVM_CHAIN_ID, HYPEREVM_CHAIN, HYPEREVM_RPC } from "@/lib/constants";
+import { HYPEREVM_CHAIN_ID, HYPEREVM_CHAIN } from "@/lib/constants";
 
-// Extend Window interface for ethereum
 declare global {
   interface Window {
     ethereum?: {
@@ -54,14 +53,14 @@ export function EvmWalletProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   const updateWalletState = useCallback(async () => {
-    if (!window.ethereum) {
+    if (typeof window === "undefined" || !window.ethereum) {
       return;
     }
 
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const accounts = (await provider.listAccounts()) as ethers.JsonRpcSigner[];
-      
+
       if (accounts.length === 0) {
         setState({
           address: null,
@@ -90,26 +89,17 @@ export function EvmWalletProvider({ children }: { children: React.ReactNode }) {
       setError(null);
     } catch (err) {
       console.error("Error updating wallet state:", err);
-      setError("Failed to connect to wallet");
     }
   }, []);
 
-  // Listen for account and chain changes
   useEffect(() => {
-    if (!window.ethereum) return;
+    if (typeof window === "undefined" || !window.ethereum) return;
 
-    const handleAccountsChanged = () => {
-      updateWalletState();
-    };
-
-    const handleChainChanged = () => {
-      updateWalletState();
-    };
+    const handleAccountsChanged = () => updateWalletState();
+    const handleChainChanged = () => updateWalletState();
 
     window.ethereum.on("accountsChanged", handleAccountsChanged);
     window.ethereum.on("chainChanged", handleChainChanged);
-
-    // Check initial state
     updateWalletState();
 
     return () => {
@@ -121,8 +111,8 @@ export function EvmWalletProvider({ children }: { children: React.ReactNode }) {
   }, [updateWalletState]);
 
   const connect = async () => {
-    if (!window.ethereum) {
-      setError("No EVM wallet detected. Please install MetaMask or Rabby.");
+    if (typeof window === "undefined" || !window.ethereum) {
+      setError("No EVM wallet detected. Please install MetaMask.");
       return;
     }
 
@@ -148,22 +138,19 @@ export function EvmWalletProvider({ children }: { children: React.ReactNode }) {
   };
 
   const switchToHyperEvm = async () => {
-    if (!window.ethereum) {
+    if (typeof window === "undefined" || !window.ethereum) {
       setError("No EVM wallet detected");
       return;
     }
 
     try {
       setError(null);
-      
-      // Try to switch to HyperEVM
       try {
         await window.ethereum.request({
           method: "wallet_switchEthereumChain",
           params: [{ chainId: HYPEREVM_CHAIN.chainId }],
         });
       } catch (switchError: unknown) {
-        // Chain not added, try to add it
         const err = switchError as { code?: number };
         if (err.code === 4902) {
           await window.ethereum.request({
@@ -174,74 +161,56 @@ export function EvmWalletProvider({ children }: { children: React.ReactNode }) {
           throw switchError;
         }
       }
-
       await updateWalletState();
     } catch (err) {
       console.error("Switch chain error:", err);
-      setError("Failed to switch to HyperEVM network");
+      setError("Failed to switch to HyperEVM");
     }
   };
 
   return (
     <EvmWalletContext.Provider
-      value={{
-        ...state,
-        connect,
-        disconnect,
-        switchToHyperEvm,
-        error,
-      }}
+      value={{ ...state, connect, disconnect, switchToHyperEvm, error }}
     >
       {children}
     </EvmWalletContext.Provider>
   );
 }
 
-// Connection button component
 export function EvmConnectButton() {
-  const { address, isConnected, isHyperEvm, connect, switchToHyperEvm, error } =
-    useEvmWallet();
+  const { address, isConnected, isHyperEvm, connect, switchToHyperEvm, error } = useEvmWallet();
 
-  const formatAddress = (addr: string) => {
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-  };
+  const formatAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 
   if (!isConnected) {
     return (
       <div>
-        <button
-          onClick={connect}
-          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
-        >
-          Connect EVM Wallet
+        <button onClick={connect} className="btn-primary px-4 py-2 text-sm">
+          Connect EVM
         </button>
-        {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+        {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
       </div>
     );
   }
 
   if (!isHyperEvm) {
     return (
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <span className="text-yellow-500">Wrong Network</span>
-          <span className="text-gray-400">{formatAddress(address!)}</span>
+      <div className="flex flex-col items-end gap-2">
+        <div className="badge badge-warning">
+          Wrong Network
         </div>
-        <button
-          onClick={switchToHyperEvm}
-          className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium"
-        >
+        <button onClick={switchToHyperEvm} className="btn-secondary px-3 py-1.5 text-xs">
           Switch to HyperEVM
         </button>
-        {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
       </div>
     );
   }
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2 bg-green-900/50 border border-green-600 rounded-lg">
-      <span className="text-green-400">HyperEVM</span>
-      <span className="text-white font-mono">{formatAddress(address!)}</span>
+    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/30">
+      <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+      <span className="text-green-400 text-sm font-medium">HyperEVM</span>
+      <span className="text-zinc-400 text-sm font-mono">{formatAddress(address!)}</span>
     </div>
   );
 }
