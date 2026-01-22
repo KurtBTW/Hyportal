@@ -7,8 +7,8 @@ import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { getAssociatedTokenAddress, getAccount, TokenAccountNotFoundError } from "@solana/spl-token";
-import { getSwapQuote, getSwapTransaction, formatQuoteOutputUsdc, JupiterQuote } from "@/lib/jupiter";
-import { findUsdcReserve, supply, formatUsdcBalance, parseUsdcInput, getUserReserveData } from "@/lib/hypurr";
+import { getSwapQuote, getSwapTransaction, JupiterQuote } from "@/lib/jupiter";
+import { findUsdcReserve, supply, getUserReserveData } from "@/lib/hypurr";
 import { getTokenBalance } from "@/lib/erc20";
 import { 
   SOLANA_USDC_MINT, 
@@ -24,7 +24,7 @@ const SolanaWalletProvider = dynamic(
   { ssr: false }
 );
 
-type FlowStep = "connect" | "input" | "swap" | "bridge" | "deposit" | "complete";
+type FlowStep = "input" | "swap" | "bridge" | "deposit" | "complete";
 type InputMode = "sol" | "usdc";
 
 function HyPortalApp() {
@@ -33,11 +33,15 @@ function HyPortalApp() {
   const { address: evmAddress, isConnected: evmConnected, isHyperEvm, signer, connect: connectEvm, switchToHyperEvm } = useEvmWallet();
 
   // Flow state
-  const [step, setStep] = useState<FlowStep>("connect");
+  const [step, setStep] = useState<FlowStep>("input");
   const [inputMode, setInputMode] = useState<InputMode>("sol");
   const [amount, setAmount] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Destination address - can be manually entered OR connected wallet
+  const [destinationAddress, setDestinationAddress] = useState("");
+  const [useConnectedWallet, setUseConnectedWallet] = useState(false);
 
   // Balances
   const [solBalance, setSolBalance] = useState<bigint>(BigInt(0));
@@ -51,58 +55,80 @@ function HyPortalApp() {
   const [txHashes, setTxHashes] = useState<{ swap?: string; bridge?: string; deposit?: string }>({});
   const [usdcReserveAddress, setUsdcReserveAddress] = useState<string | null>(null);
 
-  // Fetch balances
-  const fetchBalances = useCallback(async () => {
-    // Solana balances
-    if (solanaPublicKey && connection) {
-      try {
-        const sol = await connection.getBalance(solanaPublicKey);
-        setSolBalance(BigInt(sol));
+  // Get effective destination address
+  const effectiveDestination = useConnectedWallet && evmAddress ? evmAddress : destinationAddress;
+  const isValidAddress = effectiveDestination && /^0x[a-fA-F0-9]{40}$/.test(effectiveDestination);
 
-        const usdcMint = new PublicKey(SOLANA_USDC_MINT);
-        const tokenAccount = await getAssociatedTokenAddress(usdcMint, solanaPublicKey);
-        try {
-          const account = await getAccount(connection, tokenAccount);
-          setSolanaUsdcBalance(account.amount);
-        } catch (e) {
-          if (e instanceof TokenAccountNotFoundError) {
-            setSolanaUsdcBalance(BigInt(0));
-          }
-        }
-      } catch (err) {
-        console.error("Error fetching Solana balances:", err);
-      }
+  // Auto-fill destination when wallet connects
+  useEffect(() => {
+    if (evmAddress && !destinationAddress) {
+      setDestinationAddress(evmAddress);
+      setUseConnectedWallet(true);
+    }
+  }, [evmAddress, destinationAddress]);
+
+  // Fetch Solana balances
+  const fetchSolanaBalances = useCallback(async () => {
+    if (!solanaPublicKey || !connection) {
+      setSolBalance(BigInt(0));
+      setSolanaUsdcBalance(BigInt(0));
+      return;
     }
 
-    // HyperEVM balances
-    if (evmAddress && isHyperEvm) {
+    try {
+      const sol = await connection.getBalance(solanaPublicKey);
+      setSolBalance(BigInt(sol));
+
+      const usdcMint = new PublicKey(SOLANA_USDC_MINT);
+      const tokenAccount = await getAssociatedTokenAddress(usdcMint, solanaPublicKey);
       try {
-        const reserve = await findUsdcReserve();
-        if (reserve) {
-          setUsdcReserveAddress(reserve);
-          const balance = await getTokenBalance(reserve, evmAddress);
-          setHyperEvmUsdcBalance(balance);
-          const userData = await getUserReserveData(reserve, evmAddress);
-          setHypurrfiBalance(userData.currentATokenBalance);
+        const account = await getAccount(connection, tokenAccount);
+        setSolanaUsdcBalance(account.amount);
+      } catch (e) {
+        if (e instanceof TokenAccountNotFoundError) {
+          setSolanaUsdcBalance(BigInt(0));
         }
-      } catch (err) {
-        console.error("Error fetching HyperEVM balances:", err);
       }
+    } catch (err) {
+      console.error("Error fetching Solana balances:", err);
     }
-  }, [solanaPublicKey, connection, evmAddress, isHyperEvm]);
+  }, [solanaPublicKey, connection]);
+
+  // Fetch HyperEVM balances (only when wallet connected for deposit step)
+  const fetchHyperEvmBalances = useCallback(async () => {
+    if (!evmAddress || !isHyperEvm) {
+      setHyperEvmUsdcBalance(BigInt(0));
+      setHypurrfiBalance(BigInt(0));
+      return;
+    }
+
+    try {
+      const reserve = await findUsdcReserve();
+      if (reserve) {
+        setUsdcReserveAddress(reserve);
+        const balance = await getTokenBalance(reserve, evmAddress);
+        setHyperEvmUsdcBalance(balance);
+        const userData = await getUserReserveData(reserve, evmAddress);
+        setHypurrfiBalance(userData.currentATokenBalance);
+      }
+    } catch (err) {
+      console.error("Error fetching HyperEVM balances:", err);
+    }
+  }, [evmAddress, isHyperEvm]);
 
   useEffect(() => {
-    fetchBalances();
-    const interval = setInterval(fetchBalances, 10000);
+    fetchSolanaBalances();
+    const interval = setInterval(fetchSolanaBalances, 10000);
     return () => clearInterval(interval);
-  }, [fetchBalances]);
+  }, [fetchSolanaBalances]);
 
-  // Check if wallets connected, advance to input step
   useEffect(() => {
-    if (step === "connect" && solanaConnected && evmConnected && isHyperEvm) {
-      setStep("input");
+    if (step === "deposit" || step === "complete") {
+      fetchHyperEvmBalances();
+      const interval = setInterval(fetchHyperEvmBalances, 10000);
+      return () => clearInterval(interval);
     }
-  }, [step, solanaConnected, evmConnected, isHyperEvm]);
+  }, [fetchHyperEvmBalances, step]);
 
   // Fetch quote when amount changes (for SOL input)
   useEffect(() => {
@@ -129,6 +155,11 @@ function HyPortalApp() {
   const formatSol = (lamports: bigint) => (Number(lamports) / 10 ** SOL_DECIMALS).toFixed(4);
   const formatUsdc = (units: bigint) => (Number(units) / 10 ** USDC_DECIMALS).toFixed(2);
 
+  // Can proceed from input step
+  const canProceedFromInput = solanaConnected && 
+    parseFloat(amount) > 0 && 
+    isValidAddress;
+
   // Step 1: Swap SOL to USDC
   const handleSwap = async () => {
     if (!solanaPublicKey || !signTransaction || !quote) return;
@@ -151,7 +182,7 @@ function HyPortalApp() {
       await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight });
 
       setTxHashes(prev => ({ ...prev, swap: signature }));
-      await fetchBalances();
+      await fetchSolanaBalances();
       setStep("bridge");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Swap failed");
@@ -162,20 +193,24 @@ function HyPortalApp() {
 
   // Step 2: Bridge (opens Portal Bridge)
   const handleBridge = () => {
-    const url = `https://portalbridge.com/?sourceChain=solana&targetChain=arbitrum&asset=USDC${evmAddress ? `&targetAddress=${evmAddress}` : ''}`;
+    const url = `https://portalbridge.com/?sourceChain=solana&targetChain=arbitrum&asset=USDC&targetAddress=${effectiveDestination}`;
     window.open(url, "_blank", "width=500,height=700");
   };
 
-  // Step 2b: Confirm bridge complete
-  const confirmBridgeComplete = async () => {
-    setIsProcessing(true);
-    await fetchBalances();
-    
-    if (hyperEvmUsdcBalance > BigInt(0)) {
-      setStep("deposit");
-    } else {
-      setError("No USDC detected on HyperEVM yet. Please wait for bridge to complete.");
+  // Step 2b: Confirm bridge complete - need to connect wallet for deposit
+  const proceedToDeposit = async () => {
+    if (!evmConnected) {
+      setError("Please connect your EVM wallet to deposit");
+      return;
     }
+    if (!isHyperEvm) {
+      setError("Please switch to HyperEVM network");
+      return;
+    }
+    
+    setIsProcessing(true);
+    await fetchHyperEvmBalances();
+    setStep("deposit");
     setIsProcessing(false);
   };
 
@@ -187,12 +222,12 @@ function HyPortalApp() {
     setError(null);
 
     try {
-      const depositAmount = hyperEvmUsdcBalance; // Deposit all available USDC
+      const depositAmount = hyperEvmUsdcBalance;
       const tx = await supply(usdcReserveAddress, depositAmount, evmAddress, signer);
       const receipt = await tx.wait();
 
       setTxHashes(prev => ({ ...prev, deposit: receipt?.hash || tx.hash }));
-      await fetchBalances();
+      await fetchHyperEvmBalances();
       setStep("complete");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Deposit failed");
@@ -213,9 +248,14 @@ function HyPortalApp() {
 
   // Determine which steps are complete
   const getStepStatus = (s: FlowStep): "complete" | "current" | "pending" => {
-    const order: FlowStep[] = ["connect", "input", "swap", "bridge", "deposit", "complete"];
+    const order: FlowStep[] = ["input", "swap", "bridge", "deposit", "complete"];
     const currentIndex = order.indexOf(step);
     const stepIndex = order.indexOf(s);
+    
+    // Skip swap step if using USDC
+    if (s === "swap" && inputMode === "usdc") {
+      return step === "input" ? "pending" : "complete";
+    }
     
     if (stepIndex < currentIndex) return "complete";
     if (stepIndex === currentIndex) return "current";
@@ -235,57 +275,27 @@ function HyPortalApp() {
         <div className="card p-6">
           {/* Progress Steps */}
           <div className="flex items-center justify-between mb-6">
-            <StepIndicator label="Fund" status={getStepStatus(inputMode === "sol" ? "swap" : "bridge")} number={1} />
+            <StepIndicator label="Fund" status={getStepStatus("swap")} number={1} />
             <StepConnector active={getStepStatus("bridge") !== "pending"} />
             <StepIndicator label="Bridge" status={getStepStatus("bridge")} number={2} />
             <StepConnector active={getStepStatus("deposit") !== "pending"} />
             <StepIndicator label="Deposit" status={getStepStatus("deposit")} number={3} />
           </div>
 
-          {/* Connect Wallets Step */}
-          {step === "connect" && (
-            <div className="space-y-4">
-              <p className="text-sm text-zinc-400 text-center mb-4">
-                Connect your wallets to start
-              </p>
-              
-              <div className="space-y-3">
-                <div className={`p-4 rounded-xl border transition-all ${solanaConnected ? "border-green-500/30 bg-green-500/5" : "border-white/10 bg-white/5"}`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${solanaConnected ? "bg-green-400" : "bg-zinc-600"}`} />
-                      <span className="text-sm font-medium">Solana</span>
-                    </div>
-                    <WalletMultiButton className="!h-8 !text-xs !px-3" />
-                  </div>
-                </div>
-
-                <div className={`p-4 rounded-xl border transition-all ${evmConnected && isHyperEvm ? "border-green-500/30 bg-green-500/5" : "border-white/10 bg-white/5"}`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${evmConnected && isHyperEvm ? "bg-green-400" : evmConnected ? "bg-yellow-400" : "bg-zinc-600"}`} />
-                      <span className="text-sm font-medium">HyperEVM</span>
-                    </div>
-                    {!evmConnected ? (
-                      <button onClick={connectEvm} className="btn-primary !py-1.5 !px-3 !text-xs">
-                        Connect
-                      </button>
-                    ) : !isHyperEvm ? (
-                      <button onClick={switchToHyperEvm} className="btn-secondary !py-1.5 !px-3 !text-xs border-yellow-500/30">
-                        Switch Network
-                      </button>
-                    ) : (
-                      <span className="text-xs text-green-400">Connected</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Input Step */}
           {step === "input" && (
             <div className="space-y-4">
+              {/* Solana Wallet Connection */}
+              <div className={`p-3 rounded-xl border transition-all ${solanaConnected ? "border-green-500/30 bg-green-500/5" : "border-white/10 bg-white/5"}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${solanaConnected ? "bg-green-400" : "bg-zinc-600"}`} />
+                    <span className="text-sm font-medium">Solana Wallet</span>
+                  </div>
+                  <WalletMultiButton className="!h-8 !text-xs !px-3" />
+                </div>
+              </div>
+
               {/* Input Mode Toggle */}
               <div className="flex gap-2 p-1 bg-white/5 rounded-lg">
                 <button
@@ -309,7 +319,7 @@ function HyPortalApp() {
                     {inputMode === "sol" ? "You pay" : "Amount to bridge"}
                   </span>
                   <span className="text-xs text-zinc-500">
-                    Balance: {inputMode === "sol" ? formatSol(solBalance) : formatUsdc(solanaUsdcBalance)} {inputMode === "sol" ? "SOL" : "USDC"}
+                    {solanaConnected ? `Balance: ${inputMode === "sol" ? formatSol(solBalance) : formatUsdc(solanaUsdcBalance)} ${inputMode === "sol" ? "SOL" : "USDC"}` : "Connect wallet"}
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
@@ -329,7 +339,8 @@ function HyPortalApp() {
                         setAmount(formatUsdc(solanaUsdcBalance));
                       }
                     }}
-                    className="text-xs text-[#fbe572] hover:underline"
+                    disabled={!solanaConnected}
+                    className="text-xs text-[#fbe572] hover:underline disabled:opacity-50"
                   >
                     MAX
                   </button>
@@ -337,8 +348,55 @@ function HyPortalApp() {
                 </div>
               </div>
 
+              {/* Destination Address */}
+              <div className="card-inner p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-zinc-500">HyperEVM Destination</span>
+                  {evmConnected && (
+                    <button
+                      onClick={() => {
+                        setUseConnectedWallet(!useConnectedWallet);
+                        if (!useConnectedWallet && evmAddress) {
+                          setDestinationAddress(evmAddress);
+                        }
+                      }}
+                      className="text-xs text-[#fbe572] hover:underline"
+                    >
+                      {useConnectedWallet ? "Enter manually" : "Use connected"}
+                    </button>
+                  )}
+                </div>
+                
+                {useConnectedWallet && evmAddress ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-green-400" />
+                    <span className="font-mono text-sm text-zinc-300">{evmAddress}</span>
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    value={destinationAddress}
+                    onChange={(e) => {
+                      setDestinationAddress(e.target.value);
+                      setUseConnectedWallet(false);
+                    }}
+                    placeholder="0x..."
+                    className="w-full bg-transparent font-mono text-sm outline-none text-zinc-300"
+                  />
+                )}
+                
+                {!evmConnected && (
+                  <button
+                    onClick={connectEvm}
+                    className="mt-2 text-xs text-zinc-500 hover:text-[#fbe572] transition-colors"
+                  >
+                    Or connect wallet →
+                  </button>
+                )}
+              </div>
+
               {/* Output Preview */}
-              {parseFloat(amount) > 0 && (
+              {parseFloat(amount) > 0 && isValidAddress && (
                 <div className="card-inner p-4 bg-[#fbe572]/5 border-[#fbe572]/20">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-zinc-500">You will deposit</span>
@@ -347,9 +405,7 @@ function HyPortalApp() {
                     </span>
                   </div>
                   {inputMode === "sol" && quote && (
-                    <p className="text-xs text-zinc-500 mt-1">
-                      via Jupiter Swap
-                    </p>
+                    <p className="text-xs text-zinc-500 mt-1">via Jupiter Swap</p>
                   )}
                 </div>
               )}
@@ -357,10 +413,12 @@ function HyPortalApp() {
               {/* Continue Button */}
               <button
                 onClick={() => inputMode === "sol" ? setStep("swap") : setStep("bridge")}
-                disabled={!amount || parseFloat(amount) <= 0}
+                disabled={!canProceedFromInput}
                 className="w-full btn-primary py-4 text-base disabled:opacity-50"
               >
-                Continue
+                {!solanaConnected ? "Connect Solana Wallet" : 
+                 !isValidAddress ? "Enter destination address" :
+                 "Continue"}
               </button>
             </div>
           )}
@@ -403,11 +461,9 @@ function HyPortalApp() {
                 )}
               </button>
 
-              {txHashes.swap && (
-                <a href={formatSolanaExplorerUrl(txHashes.swap)} target="_blank" rel="noopener noreferrer" className="block text-center text-xs text-[#a1fce7] hover:underline">
-                  View swap transaction →
-                </a>
-              )}
+              <button onClick={() => setStep("input")} className="w-full text-sm text-zinc-500 hover:text-white">
+                ← Back
+              </button>
             </div>
           )}
 
@@ -424,14 +480,14 @@ function HyPortalApp() {
                 </p>
               </div>
 
-              <div className="card-inner p-4">
-                <p className="text-sm text-zinc-400 mb-3">
-                  Click below to open Portal Bridge. Bridge your USDC from Solana to an EVM chain, then transfer to HyperEVM.
-                </p>
-                <div className="flex items-center gap-2 text-xs text-zinc-500">
-                  <span>Recipient:</span>
-                  <span className="font-mono text-zinc-300">{evmAddress?.slice(0, 10)}...{evmAddress?.slice(-8)}</span>
+              <div className="card-inner p-4 text-sm">
+                <div className="flex justify-between mb-2">
+                  <span className="text-zinc-500">To Address</span>
+                  <span className="font-mono text-zinc-300 text-xs">{effectiveDestination.slice(0, 8)}...{effectiveDestination.slice(-6)}</span>
                 </div>
+                <p className="text-xs text-zinc-500">
+                  Bridge will open in a new window. Complete the transfer, then return here.
+                </p>
               </div>
 
               <button
@@ -441,18 +497,44 @@ function HyPortalApp() {
                 Open Portal Bridge
               </button>
 
+              {/* Connect wallet for deposit OR skip if just bridging */}
+              <div className="card-inner p-4">
+                <p className="text-xs text-zinc-500 mb-3">After bridging, connect wallet to deposit:</p>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${evmConnected && isHyperEvm ? "bg-green-400" : "bg-zinc-600"}`} />
+                    <span className="text-sm">HyperEVM</span>
+                  </div>
+                  {!evmConnected ? (
+                    <button onClick={connectEvm} className="btn-primary !py-1.5 !px-3 !text-xs">
+                      Connect
+                    </button>
+                  ) : !isHyperEvm ? (
+                    <button onClick={switchToHyperEvm} className="btn-secondary !py-1.5 !px-3 !text-xs">
+                      Switch Network
+                    </button>
+                  ) : (
+                    <span className="text-xs text-green-400">Ready</span>
+                  )}
+                </div>
+              </div>
+
               <button
-                onClick={confirmBridgeComplete}
-                disabled={isProcessing}
-                className="w-full btn-secondary py-3 text-sm"
+                onClick={proceedToDeposit}
+                disabled={isProcessing || !evmConnected || !isHyperEvm}
+                className="w-full btn-secondary py-3 text-sm disabled:opacity-50"
               >
                 {isProcessing ? (
                   <span className="flex items-center justify-center gap-2">
                     <Spinner /> Checking...
                   </span>
                 ) : (
-                  `I've completed the bridge (${formatUsdc(hyperEvmUsdcBalance)} USDC on HyperEVM)`
+                  "Continue to Deposit"
                 )}
+              </button>
+
+              <button onClick={() => setStep("input")} className="w-full text-sm text-zinc-500 hover:text-white">
+                ← Back
               </button>
             </div>
           )}
@@ -466,33 +548,54 @@ function HyPortalApp() {
                 </div>
                 <h3 className="text-lg font-semibold mb-1">Deposit to HypurrFi</h3>
                 <p className="text-sm text-zinc-400">
-                  {formatUsdc(hyperEvmUsdcBalance)} USDC ready
+                  {formatUsdc(hyperEvmUsdcBalance)} USDC on HyperEVM
                 </p>
               </div>
 
-              <div className="card-inner p-3 text-sm">
-                <div className="flex justify-between mb-1">
-                  <span className="text-zinc-500">Protocol</span>
-                  <span className="text-zinc-300">HypurrFi (Aave V3)</span>
+              {hyperEvmUsdcBalance <= BigInt(0) ? (
+                <div className="card-inner p-4 text-center">
+                  <p className="text-sm text-zinc-400 mb-3">
+                    No USDC detected yet. Bridge may still be processing.
+                  </p>
+                  <button
+                    onClick={fetchHyperEvmBalances}
+                    disabled={isProcessing}
+                    className="btn-secondary !py-2 !px-4 !text-sm"
+                  >
+                    {isProcessing ? <Spinner /> : "Check Again"}
+                  </button>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-zinc-500">Amount</span>
-                  <span className="text-[#a1fce7] font-medium">{formatUsdc(hyperEvmUsdcBalance)} USDC</span>
-                </div>
-              </div>
+              ) : (
+                <>
+                  <div className="card-inner p-3 text-sm">
+                    <div className="flex justify-between mb-1">
+                      <span className="text-zinc-500">Protocol</span>
+                      <span className="text-zinc-300">HypurrFi (Aave V3)</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Amount</span>
+                      <span className="text-[#a1fce7] font-medium">{formatUsdc(hyperEvmUsdcBalance)} USDC</span>
+                    </div>
+                  </div>
 
-              <button
-                onClick={handleDeposit}
-                disabled={isProcessing || hyperEvmUsdcBalance <= BigInt(0)}
-                className="w-full btn-primary py-4 text-base disabled:opacity-50"
-              >
-                {isProcessing ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <Spinner /> Depositing...
-                  </span>
-                ) : (
-                  "Confirm Deposit"
-                )}
+                  <button
+                    onClick={handleDeposit}
+                    disabled={isProcessing}
+                    className="w-full btn-primary py-4 text-base disabled:opacity-50"
+                  >
+                    {isProcessing ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Spinner /> Depositing...
+                      </span>
+                    ) : (
+                      "Confirm Deposit"
+                    )}
+                  </button>
+                </>
+              )}
+
+              <button onClick={() => setStep("bridge")} className="w-full text-sm text-zinc-500 hover:text-white">
+                ← Back
               </button>
             </div>
           )}
@@ -501,7 +604,7 @@ function HyPortalApp() {
           {step === "complete" && (
             <div className="space-y-4">
               <div className="text-center py-6">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#22c55e] to-[#a1fce7] mx-auto flex items-center justify-center mb-4 animate-pulse">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#22c55e] to-[#a1fce7] mx-auto flex items-center justify-center mb-4">
                   <span className="text-3xl">✓</span>
                 </div>
                 <h3 className="text-xl font-semibold mb-1 gradient-text">Deposit Complete!</h3>
