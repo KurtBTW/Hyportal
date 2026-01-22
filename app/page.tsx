@@ -69,28 +69,33 @@ function HyPortalApp() {
 
   // Fetch Solana balances
   const fetchSolanaBalances = useCallback(async () => {
-    if (!solanaPublicKey || !connection) {
+    if (!solanaPublicKey) {
       setSolBalance(BigInt(0));
       setSolanaUsdcBalance(BigInt(0));
       return;
     }
 
     try {
-      const sol = await connection.getBalance(solanaPublicKey);
-      setSolBalance(BigInt(sol));
+      // Get SOL balance
+      const solBalanceResult = await connection.getBalance(solanaPublicKey, "confirmed");
+      console.log("SOL balance (lamports):", solBalanceResult);
+      setSolBalance(BigInt(solBalanceResult));
 
-      const usdcMint = new PublicKey(SOLANA_USDC_MINT);
-      const tokenAccount = await getAssociatedTokenAddress(usdcMint, solanaPublicKey);
+      // Get USDC balance
       try {
-        const account = await getAccount(connection, tokenAccount);
+        const usdcMint = new PublicKey(SOLANA_USDC_MINT);
+        const tokenAccount = await getAssociatedTokenAddress(usdcMint, solanaPublicKey);
+        const account = await getAccount(connection, tokenAccount, "confirmed");
+        console.log("USDC balance:", account.amount.toString());
         setSolanaUsdcBalance(account.amount);
       } catch (e) {
-        if (e instanceof TokenAccountNotFoundError) {
-          setSolanaUsdcBalance(BigInt(0));
-        }
+        // Token account doesn't exist - that's fine, just means 0 USDC
+        console.log("No USDC token account found");
+        setSolanaUsdcBalance(BigInt(0));
       }
     } catch (err) {
       console.error("Error fetching Solana balances:", err);
+      // Don't reset balances on error - keep showing last known value
     }
   }, [solanaPublicKey, connection]);
 
@@ -116,11 +121,20 @@ function HyPortalApp() {
     }
   }, [evmAddress, isHyperEvm]);
 
+  // Fetch balances when wallet connects or on mount
   useEffect(() => {
-    fetchSolanaBalances();
-    const interval = setInterval(fetchSolanaBalances, 10000);
+    if (solanaConnected) {
+      console.log("Wallet connected, fetching balances for:", solanaPublicKey?.toBase58());
+      fetchSolanaBalances();
+    }
+  }, [solanaConnected, solanaPublicKey, fetchSolanaBalances]);
+
+  // Also poll for balance updates
+  useEffect(() => {
+    if (!solanaConnected) return;
+    const interval = setInterval(fetchSolanaBalances, 15000);
     return () => clearInterval(interval);
-  }, [fetchSolanaBalances]);
+  }, [solanaConnected, fetchSolanaBalances]);
 
   useEffect(() => {
     if (step === "deposit" || step === "complete") {
@@ -318,9 +332,20 @@ function HyPortalApp() {
                   <span className="text-xs text-zinc-500">
                     {inputMode === "sol" ? "You pay" : "Amount to bridge"}
                   </span>
-                  <span className="text-xs text-zinc-500">
-                    {solanaConnected ? `Balance: ${inputMode === "sol" ? formatSol(solBalance) : formatUsdc(solanaUsdcBalance)} ${inputMode === "sol" ? "SOL" : "USDC"}` : "Connect wallet"}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-zinc-500">
+                      {solanaConnected ? `Balance: ${inputMode === "sol" ? formatSol(solBalance) : formatUsdc(solanaUsdcBalance)} ${inputMode === "sol" ? "SOL" : "USDC"}` : "Connect wallet"}
+                    </span>
+                    {solanaConnected && (
+                      <button 
+                        onClick={fetchSolanaBalances}
+                        className="text-xs text-zinc-600 hover:text-[#fbe572] transition-colors"
+                        title="Refresh balance"
+                      >
+                        ↻
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <input

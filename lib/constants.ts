@@ -20,7 +20,7 @@ export const HYPEREVM_CHAIN = {
   blockExplorerUrls: [HYPEREVM_EXPLORER],
 };
 
-// Solana
+// Solana RPC endpoints
 export const SOLANA_RPC = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
 export const SOLANA_EXPLORER = "https://solscan.io";
 
