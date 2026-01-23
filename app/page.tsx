@@ -325,74 +325,98 @@ function HyPortalApp() {
     <main className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Header */}
-        <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold gradient-text">HyPortal</h1>
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-display font-semibold gradient-text tracking-tight">HyPortal</h1>
           {step !== "landing" && (
-            <p className="text-zinc-500 text-sm mt-1">Solana → HyperEVM → HypurrFi</p>
+            <p className="text-[#6b7280] text-xs mt-1.5 uppercase tracking-widest">Solana → HyperEVM → HypurrFi</p>
           )}
         </div>
 
         {/* Main Card */}
         <div className="card p-6">
-          {/* Landing Step - Wellspring-inspired Design */}
+          {/* Landing Step - Premium Banking Design */}
           {step === "landing" && (
             <div className="space-y-8">
-              {/* Badge */}
-              <div className="flex justify-center">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#fbe572]/10 border border-[#fbe572]/20">
-                  <div className="w-2 h-2 rounded-full bg-[#fbe572]" />
-                  <span className="text-xs text-[#fbe572] font-medium">Earn yield on your USDC</span>
+              {/* Premium Badge */}
+              <div className="flex justify-center animate-fade-in">
+                <div className="badge-gold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#d4af37] mr-2" />
+                  High-Yield Savings
                 </div>
               </div>
 
-              {/* Main Headline */}
-              <div className="text-center space-y-4">
-                <h1 className="text-3xl sm:text-4xl font-bold leading-tight">
-                  High yield. No lockup.{" "}
-                  <span className="gradient-text">
-                    {supplyApy !== null ? `${supplyApy.toFixed(1)}% APY` : "-- APY"}
+              {/* APY Hero Display */}
+              <div className="text-center space-y-2 animate-fade-in animate-delay-1">
+                <p className="text-sm text-[#8b919e] uppercase tracking-widest">Current Rate</p>
+                <div className="flex items-baseline justify-center gap-1">
+                  <span className="text-6xl sm:text-7xl font-display font-semibold gradient-text tabular-nums">
+                    {supplyApy !== null ? supplyApy.toFixed(2) : "--"}
                   </span>
-                </h1>
-                <p className="text-zinc-400 text-base max-w-sm mx-auto">
-                  Bridge from Solana and deposit to HypurrFi—earning high yield powered by DeFi lending markets.
-                </p>
+                  <span className="text-2xl text-[#d4af37] font-display">%</span>
+                  <span className="text-lg text-[#8b919e] ml-1">APY</span>
+                </div>
+                <p className="text-[#8b919e] text-sm">on USDC deposits</p>
+              </div>
+
+              {/* Divider */}
+              <div className="divider animate-fade-in animate-delay-2" />
+
+              {/* Value Props */}
+              <div className="space-y-4 animate-fade-in animate-delay-2">
+                <div className="flex items-center gap-4 p-3 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                  <div className="w-10 h-10 rounded-full bg-[#d4af37]/10 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5 text-[#d4af37]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white">Non-Custodial</p>
+                    <p className="text-xs text-[#8b919e]">You maintain full control of your funds</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-4 p-3 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                  <div className="w-10 h-10 rounded-full bg-[#d4af37]/10 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5 text-[#d4af37]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white">Instant Withdrawals</p>
+                    <p className="text-xs text-[#8b919e]">Access your funds anytime, 24/7</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-4 p-3 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                  <div className="w-10 h-10 rounded-full bg-[#d4af37]/10 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5 text-[#d4af37]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white">Overcollateralized Lending</p>
+                    <p className="text-xs text-[#8b919e]">Powered by HypurrFi DeFi protocol</p>
+                  </div>
+                </div>
               </div>
 
               {/* CTA Button */}
               <button
                 onClick={() => setStep("input")}
-                className="w-full btn-primary py-4 text-base font-semibold"
+                className="w-full btn-primary py-4 text-base animate-fade-in animate-delay-3"
               >
                 Deposit Now
               </button>
 
-              {/* Stats Row */}
-              <div className="grid grid-cols-3 gap-4 pt-4 border-t border-white/5">
-                <div className="text-center">
-                  <p className="text-xl font-bold gradient-text">
-                    {supplyApy !== null ? `${supplyApy.toFixed(1)}%` : "--"}
-                  </p>
-                  <p className="text-xs text-zinc-500">Supply APY</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xl font-bold text-white">USDC</p>
-                  <p className="text-xs text-zinc-500">Stablecoin</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xl font-bold text-white">24/7</p>
-                  <p className="text-xs text-zinc-500">Withdraw</p>
-                </div>
-              </div>
-
-              {/* Trust indicators */}
-              <div className="text-center space-y-2 pt-2">
-                <p className="text-xs text-zinc-600">Powered by</p>
-                <div className="flex items-center justify-center gap-4 text-zinc-500 text-xs">
-                  <span>HypurrFi</span>
-                  <span>•</span>
-                  <span>Portal Bridge</span>
-                  <span>•</span>
-                  <span>Jupiter</span>
+              {/* Trust Footer */}
+              <div className="text-center pt-2 animate-fade-in animate-delay-4">
+                <p className="text-xs text-[#5a6070] uppercase tracking-wider mb-3">Trusted Infrastructure</p>
+                <div className="flex items-center justify-center gap-6 text-[#6b7280]">
+                  <span className="text-xs font-medium">HypurrFi</span>
+                  <span className="text-[#3d4555]">|</span>
+                  <span className="text-xs font-medium">Portal Bridge</span>
+                  <span className="text-[#3d4555]">|</span>
+                  <span className="text-xs font-medium">Jupiter</span>
                 </div>
               </div>
             </div>
